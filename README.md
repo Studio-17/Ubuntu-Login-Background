@@ -32,7 +32,7 @@ Si vous voulez aller au niveau du stockage de votre pc pour retrouver votre phot
 - Computer
 - home
 - (le nom de votre pc)
-- (le/les dossier ou est stocké votre image)
+- (le/les dossier(s) ou est/sont stocké(s) votre image)
 
 Cliquez sur <img src="./reste/ok.png" height="20"> puis dans le terminal entrez ```o``` ce qui redémarrera votre pc et vous aurez votre nouveau fond d'écran.
 

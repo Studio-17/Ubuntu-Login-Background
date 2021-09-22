@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# Authors: Gabriel Theuws
+# Translate : Gabriel Theuws
+# Contact: gaby.theuws@gmail.com
+# URL origin: https://github.com/thiggy01/ubuntu-20.04-change-gdm-background
+# URL translation: https://github.com/Amiralgaby/ubuntu-change-gdm-background
+# =================================================================== #
+
+usage () {
+    cat << EOF
+Utilisation :
+  sudo $0 [CONTENT] [OPTIONS]
+
+CONTENT :
+  /chemin/du/fichier.[jpg|png]  -   Chemin vers une image
+  Couleur en hexadécimal        -   Code en hexadécimal comme "44ff22" (couleur unie)
+
+OPTIONS :
+  --cache-filigrane             -   Cache le logo Ubuntu sur l'écran de connexion
+                                    et par la même occasion celui du boot
+  --restore                     -   Restaure l'ancien thème
+EOF
+}
+
+[ "$1" == "-h" ] && usage && exit 0
+
+# Check if script is run by root.
+if [ "$(id -u)" -ne 0 ] ; then
+    echo -e 'Ce script doit être exécuté en tant que root ou avec la commande sudo.\n'
+    usage
+    exit 1
+fi
+
+[ -f /etc/os-release ] && . /etc/os-release
+
+# Check what linux distro is being used.
+if ! [[ "$VERSION_CODENAME" =~ (focal|groovy) ]]; then
+    echo "Désolé, ce script ne fonctionne qu'avec des distros focal ou groovy."
+    exit 1
+fi
+
+# Check si l'option --cache-filigrane à été donnée
+for arg in "$@"; do
+    if [ "$arg" == "--cache-filigrane" ]; then
+        logoPath="/usr/share/plymouth/ubuntu-logo.png"
+        [ -f $logoPath ] && mv $logoPath "$logoPath.bak"
+        [ $# -eq 1 ] && shift
+    fi
+done
+
+# Check if glib 2.0 development libraries are installed.
+if [ ! -x "$(command -v glib-compile-resources)" ]; then
+    echo 'Des bibliothèques glib 2.0 supplémentaires doivent être installées.'
+    read -rp 'Tapez o ou O pour continuer. Toute autre touche pour sortir : ' -n 1
+    if [[ "$REPLY" =~ ^[oO]$ ]]; then
+        apt install libglib2.0-dev-bin
+    else
+        echo "Ce script ne peut pas fonctionner sans les bibliothèques nécessaires"
+        echo "Abandon"
+        echo
+        exit 1
+    fi
+fi
+
+# Assign the default gdm theme file path.
+
+if [ "$NAME" == 'Ubuntu' ]; then
+    gdm3Resource=/usr/share/gnome-shell/theme/Yaru/gnome-shell-theme.gresource
+elif [ "$NAME" == 'Pop' ]; then
+    gdm3Resource=/usr/share/gnome-shell/theme/Pop/gnome-shell-theme.gresource
+fi
+
+# Create a backup file of the original theme if there isn't one.
+[ ! -f "$gdm3Resource"~ ] && cp "$gdm3Resource" "$gdm3Resource~"
+
+# Restore backup function.
+restore () {
+
+    if mv "$gdm3Resource~" "$gdm3Resource"; then
+        chmod 644 "$gdm3Resource"
+        echo 'Le fond GDM a été restauré avec succès.'
+        read -rp 'Voulez-vous relancer le GDM pour appliquer le changement ? (o/n) :' -n 1
+        echo
+        if [[ "$REPLY" =~ ^[oO]$ ]]; then
+            service gdm restart
+        else
+            echo 'Redémarrez le service GDM pour appliquer le changement.'
+        fi
+        exit 0
+    fi
+}
+
+# Restore the original gdm3 theme.
+[ "$1" == "--restore" ] && restore
+
+#Define main variables.
+gdm3xml=$(basename "$gdm3Resource").xml
+workDir="/tmp/gdm3-theme"
+
+# Create directories from resource list.
+CreateDirs() {
+    for resource in $(gresource list "$gdm3Resource~"); do
+        resource="${resource#\/org\/gnome\/shell\/}"
+        if [ ! -d "$workDir"/"${resource%/*}" ]; then
+            mkdir -p "$workDir"/"${resource%/*}"
+        fi
+    done
+}
+
+# Extract resources from binary file.
+ExtractRes() {
+    for resource in $(gresource list "$gdm3Resource~"); do
+        gresource extract "$gdm3Resource~" "$resource" > \
+            "$workDir"/"${resource#\/org\/gnome\/shell\/}"
+    done
+}
+
+# Compile resources into a gresource binary file.
+CompileMoveRes() {
+
+    glib-compile-resources --sourcedir=$workDir/theme/ $workDir/theme/"$gdm3xml"
+
+    # Move the generated binary file to the gnome-shell folder.
+
+    if mv $workDir/theme/gnome-shell-theme.gresource $gdm3Resource; then
+        # Solve a permission change issue (thanks to @huepf from github).
+        chmod 644 "$gdm3Resource"
+        echo "L'arrière-plan de l'écran de connexion a changé avec succès."
+        read -rp 'Voulez-vous relancer la session pour voir votre nouvel arrière-plan ?
+        (TOUTES les applications seront stopées)  (o/n) :' -n 1
+        echo
+        # If change was successful apply ask for gdm restart.
+        if [[ "$REPLY" =~ ^[oO]$ ]]; then
+            service gdm restart
+        fi
+    else
+        # If something went wrong, restore backup file.
+        echo "quelque chose s'est mal passé."
+        restore
+        echo "Aucun changement n'a été appliqué"
+    fi
+
+    # Remove temporary directories and files.
+    rm -r "$workDir"
+    exit 0
+}
+
+# Permet de demander à l'utilisateur de sélectionner une image s'il n'en a pas défini une en paramètre
+# Si c'est un code aucune demande ne sera faite
+imageOuCode="$1"
+if [ -z "$imageOuCode" ]
+then
+    outilDialogue=""
+    if command -v yad > /dev/null;then outilDialogue="yad";
+    elif command -v zenity > /dev/null;then outilDialogue="zenity";fi
+    if [[ "$outilDialogue" != "" ]]
+    then
+        imageOuCode=$($outilDialogue --file-selection --title "Séléctionnez une image" --file-filter "Image Files | *.jpg *.png")
+    fi
+fi
+
+# Test if argument is an image file.
+if [[ $(file --mime-type -b "$imageOuCode") == image/*g ]]; then
+
+    # Define image variables.
+    gdmBgImg=$(realpath "$imageOuCode")
+    imgFile=$(basename "$gdmBgImg")
+
+    # Call procedures to create directories and extract resources to them.
+    CreateDirs
+
+    ExtractRes
+
+    # Copy selected image to the resources directory.
+    cp "$gdmBgImg" "$workDir"/theme
+
+    # Change gdm background to the image you submited.
+    oldBg="#lockDialogGroup \{.*?\}"
+    newBg="#lockDialogGroup {
+        background: url('resource:\/\/\/org\/gnome\/shell\/theme\/$imgFile');
+    background-size: cover; }"
+    perl -i -0777 -pe "s/$oldBg/$newBg/s" "$workDir"/theme/gdm3.css
+
+    # Generate gresource xml file.
+    echo '<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+    <gresource prefix="/org/gnome/shell/theme">' > "$workDir"/theme/"$gdm3xml"
+    for file in $(gresource list "$gdm3Resource~"); do
+        echo "        <file>${file#\/org\/gnome/shell\/theme\/}</file>" \
+            >> "$workDir"/theme/"$gdm3xml"
+    done
+    echo "        <file>$imgFile</file>" >> "$workDir"/theme/"$gdm3xml"
+    echo '    </gresource>
+    </gresources>' >> "$workDir"/theme/"$gdm3xml"
+
+    # Compile and move gresource.
+    CompileMoveRes
+
+elif [[ "$imageOuCode" =~ ^([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$ ]]; then
+
+    CreateDirs
+    ExtractRes
+
+    # Change gdm background to the color you submited.
+    oldBg="#lockDialogGroup \{.*?\}"
+    newBg="#lockDialogGroup {
+        background: #$imageOuCode;
+    background-size: cover; }"
+    perl -i -0777 -pe "s/$oldBg/$newBg/s" "$workDir"/theme/gdm3.css
+
+    # Generate the gresource xml file.
+    echo '<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+    <gresource prefix="/org/gnome/shell/theme">' > "$workDir"/theme/"$gdm3xml"
+    for file in $(gresource list "$gdm3Resource~"); do
+        echo "        <file>${file#\/org\/gnome/shell\/theme\/}</file>" \
+            >> "$workDir"/theme/"$gdm3xml"
+    done
+    echo '    </gresource>
+    </gresources>' >> "$workDir"/theme/"$gdm3xml"
+
+    # Compile and move gresoure.
+    CompileMoveRes
+
+else
+
+    # If no file was submited or file submited isn't an image,
+    # show this message.
+    echo
+    echo "L'image n'a pas été trouvée ou vous avez renseigné un mauvais code hexadécimal"
+    echo "S'il vous plaît, donnez un chemin vers une image .jpg ou .png ou un code hexadécimal valide"
+fi

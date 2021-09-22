@@ -1,11 +1,11 @@
 # Changer de fond au login Ubuntu
 Il s'agit d'un script qui change l'arrière-plan de l'écran de connexion 
-d'Ubuntu.
+d'Ubuntu (qui est la plupart du temps en violet).
+
+<img src="./reste/login.png" height="250">
 
 ## Disclaimer
-Ce script est repris de <a href = "mailto: gaby.theuws@gmail.com">Gabriel Theuws</a>  avec comme ajout une description exacte de comment l'utiliser.
-
-<br>
+Ce script est repris de <a href = "mailto: gaby.theuws@gmail.com">Gabriel Theuws</a>  avec comme ajout une description rapide de comment l'utiliser.
 
 ## Installation et Usage
 
@@ -27,11 +27,12 @@ Vous tomberez alors sur cette page:
 
 <img src="./reste/accueil.png" height="300">
 
-Si vous voulez aller au niveau du stockage de votre pc allez sur:
+Si vous voulez aller au niveau du stockage de votre pc pour retrouver votre photo allez sur:
 - Other Locations
 - Computer
 - home
 - (le nom de votre pc)
+- le dossier ou est stocké votre image)
 
 Cliquez sur <img src="./reste/ok.png" height="20"> puis dans le terminal entrez ```o``` ce qui redémarrera votre pc et vous aurez votre nouveau fond d'écran.
 
